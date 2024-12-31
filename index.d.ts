@@ -75,6 +75,8 @@ declare module "panzoom" {
     showRectangle: (rect: ClientRect) => void;
     pause: () => void;
     resume: () => void;
+    pausePan: () => void;
+    resumePan: () => void;
     isPaused: () => boolean;
     on: <T>(eventName: string, handler: (e: T) => void) => void;
     off: (eventName: string, handler: Function) => void;
@@ -91,6 +93,7 @@ declare module "panzoom" {
 
   export default function createPanZoom(
     domElement: HTMLElement | SVGElement,
+    wrapperElement?: HTMLElement,
     options?: PanZoomOptions
   ): PanZoom;
 }

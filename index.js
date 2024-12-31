@@ -26,7 +26,7 @@ module.exports = createPanZoom;
  * @param {DOMElement} domElement where panzoom should be attached.
  * @param {Object} options that configure behavior.
  */
-function createPanZoom(domElement, options) {
+function createPanZoom(domElement, wrapperElement, options) {
   options = options || {};
 
   var panController = options.controller;
@@ -115,6 +115,7 @@ function createPanZoom(domElement, options) {
 
   var multiTouch;
   var paused = false;
+  var panPaused = false;
 
   listenForEvents();
 
@@ -122,7 +123,7 @@ function createPanZoom(domElement, options) {
     dispose: dispose,
     moveBy: internalMoveBy,
     moveTo: moveTo,
-    smoothMoveTo: smoothMoveTo, 
+    smoothMoveTo: smoothMoveTo,
     centerOn: centerOn,
     zoomTo: publicZoomTo,
     zoomAbs: zoomAbs,
@@ -133,6 +134,8 @@ function createPanZoom(domElement, options) {
     pause: pause,
     resume: resume,
     isPaused: isPaused,
+    pausePan: pausePan,
+    resumePan: resumePan,
 
     getTransform: getTransformModel,
 
@@ -150,12 +153,12 @@ function createPanZoom(domElement, options) {
   };
 
   eventify(api);
-  
+
   var initialX = typeof options.initialX === 'number' ? options.initialX : transform.x;
   var initialY = typeof options.initialY === 'number' ? options.initialY : transform.y;
   var initialZoom = typeof options.initialZoom === 'number' ? options.initialZoom : transform.scale;
 
-  if(initialX != transform.x || initialY != transform.y || initialZoom != transform.scale){
+  if (initialX != transform.x || initialY != transform.y || initialZoom != transform.scale) {
     zoomAbs(initialX, initialY, initialZoom);
   }
 
@@ -172,6 +175,21 @@ function createPanZoom(domElement, options) {
       paused = false;
     }
   }
+
+
+  function pausePan() {
+    releaseEvents();
+    panPaused = true;
+  }
+
+  function resumePan() {
+    if (panPaused) {
+      listenForEvents();
+      panPaused = false;
+    }
+
+  }
+
 
   function isPaused() {
     return paused;
@@ -296,6 +314,8 @@ function createPanZoom(domElement, options) {
     transform.x = x;
     transform.y = y;
 
+    console.log('move to ', x, y)
+
     keepTransformInsideBounds();
 
     triggerEvent('pan');
@@ -307,40 +327,45 @@ function createPanZoom(domElement, options) {
   }
 
   function keepTransformInsideBounds() {
-    var boundingBox = getBoundingBox();
-    if (!boundingBox) return;
 
-    var adjusted = false;
-    var clientRect = getClientRect();
+    let adjusted = false;
 
-    var diff = boundingBox.left - clientRect.right;
-    if (diff > 0) {
-      transform.x += diff;
-      adjusted = true;
-    }
-    // check the other side:
-    diff = boundingBox.right - clientRect.left;
-    if (diff < 0) {
-      transform.x += diff;
-      adjusted = true;
+    const wrapperWidth = wrapperElement.clientWidth;
+    const wrapperHeight = wrapperElement.clientHeight;
+
+    const imageWidth = domElement.clientWidth;
+    const imageHeight = domElement.clientHeight;
+
+    console.log({ wrapperWidth, wrapperHeight, imageWidth, imageHeight })
+
+    if (wrapperWidth && wrapperHeight && imageWidth && imageHeight) {
+      const scaledWidth = imageWidth * transform.scale;
+      const scaledHeight = imageHeight * transform.scale;
+
+      const horizontalSpace = wrapperWidth - scaledWidth;
+      const verticalSpace = wrapperHeight - scaledHeight;
+
+      if (scaledWidth >= wrapperWidth) {
+        const minX = horizontalSpace;
+        const maxX = 0;
+        if (transform.x < minX) { transform.x = minX; adjusted = true }
+        if (transform.x > maxX) { transform.x = maxX; adjusted = true }
+      } else {
+        transform.x = horizontalSpace / 2;
+        adjusted = true;
+      }
+
+      if (scaledHeight >= wrapperHeight) {
+        const minY = verticalSpace;
+        const maxY = 0;
+        if (transform.y < minY) { transform.y = minY; adjusted = true }
+        if (transform.y > maxY) { transform.y = maxY; adjusted = true }
+      } else {
+        transform.y = verticalSpace / 2;
+        adjusted = true;
+      }
     }
 
-    // y axis:
-    diff = boundingBox.top - clientRect.bottom;
-    if (diff > 0) {
-      // we adjust transform, so that it matches exactly our bounding box:
-      // transform.y = boundingBox.top - (boundingBox.height + boundingBox.y) * transform.scale =>
-      // transform.y = boundingBox.top - (clientRect.bottom - transform.y) =>
-      // transform.y = diff + transform.y =>
-      transform.y += diff;
-      adjusted = true;
-    }
-
-    diff = boundingBox.bottom - clientRect.top;
-    if (diff < 0) {
-      transform.y += diff;
-      adjusted = true;
-    }
     return adjusted;
   }
 
@@ -414,14 +439,9 @@ function createPanZoom(domElement, options) {
     transform.x = size.x - ratio * (size.x - transform.x);
     transform.y = size.y - ratio * (size.y - transform.y);
 
-    // TODO: https://github.com/anvaka/panzoom/issues/112
-    if (bounds && boundsPadding === 1 && minZoom === 1) {
-      transform.scale *= ratio;
-      keepTransformInsideBounds();
-    } else {
-      var transformAdjusted = keepTransformInsideBounds();
-      if (!transformAdjusted) transform.scale *= ratio;
-    }
+    transform.scale *= ratio;
+
+    keepTransformInsideBounds();
 
     triggerEvent('zoom');
 
@@ -450,7 +470,7 @@ function createPanZoom(domElement, options) {
     internalMoveBy(dx, dy, true);
   }
 
-  function smoothMoveTo(x, y){
+  function smoothMoveTo(x, y) {
     internalMoveBy(x - transform.x, y - transform.y, true);
   }
 
@@ -467,7 +487,7 @@ function createPanZoom(domElement, options) {
     var lastY = 0;
 
     moveByAnimation = animate(from, to, {
-      step: function (v) {
+      step: function(v) {
         moveBy(v.x - lastX, v.y - lastY);
 
         lastX = v.x;
@@ -594,6 +614,7 @@ function createPanZoom(domElement, options) {
     clearPendingClickEventTimeout();
 
     if (e.touches.length === 1) {
+      if (panPaused) return;
       return handleSingleFingerTouch(e, e.touches[0]);
     } else if (e.touches.length === 2) {
       // handleTouchMove() will care about pinch zoom.
@@ -775,6 +796,8 @@ function createPanZoom(domElement, options) {
   function onMouseDown(e) {
     clearPendingClickEventTimeout();
 
+    console.log('test')
+
     // if client does not want to handle this event - just ignore the call
     if (beforeMouseDown(e)) return;
 
@@ -888,7 +911,7 @@ function createPanZoom(domElement, options) {
     cancelZoomAnimation();
 
     zoomToAnimation = animate(from, to, {
-      step: function (v) {
+      step: function(v) {
         zoomAbs(clientX, clientY, v.scale);
       },
       done: triggerZoomEnd
@@ -904,7 +927,7 @@ function createPanZoom(domElement, options) {
     cancelZoomAnimation();
 
     zoomToAnimation = animate(from, to, {
-      step: function (v) {
+      step: function(v) {
         zoomAbs(clientX, clientY, v.scale);
       }
     });
@@ -1098,4 +1121,4 @@ function autoRun() {
 }
 
 autoRun();
-	
+
