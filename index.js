@@ -314,8 +314,6 @@ function createPanZoom(domElement, wrapperElement, options) {
     transform.x = x;
     transform.y = y;
 
-    console.log('move to ', x, y)
-
     keepTransformInsideBounds();
 
     triggerEvent('pan');
@@ -335,8 +333,6 @@ function createPanZoom(domElement, wrapperElement, options) {
 
     const imageWidth = domElement.clientWidth;
     const imageHeight = domElement.clientHeight;
-
-    console.log({ wrapperWidth, wrapperHeight, imageWidth, imageHeight })
 
     if (wrapperWidth && wrapperHeight && imageWidth && imageHeight) {
       const scaledWidth = imageWidth * transform.scale;
@@ -795,8 +791,6 @@ function createPanZoom(domElement, wrapperElement, options) {
 
   function onMouseDown(e) {
     clearPendingClickEventTimeout();
-
-    console.log('test')
 
     // if client does not want to handle this event - just ignore the call
     if (beforeMouseDown(e)) return;
